@@ -1,28 +1,13 @@
-# scheduling_all_groups.py
 import heapq
 import math
-import random
 from copy import deepcopy
 
-# -----------------------------
-# CONFIG (edit these for each group run)
-# -----------------------------
-# Choose group to run: group_a, group_b, group_c, group_d, group_e
+
+# edit these for each group run
 GROUP_NAME = "group_a"   # set to "group_a"|"group_b"|"group_c"|"group_d"|"group_e"
+RR_TQ = 4   # Set standard RR time quantum
 
-# Standard RR time quantum (set before running)
-RR_TQ = 4   # 
-
-# PSA priorities per test case:
-#   where each inner list contains 5 (unique) priorities for the corresponding test case.
-# - If left None, deterministic default priorities [1..n] (by PID order) will be used for each case.
-PSA_PRIORITIES_PER_CASE = [[1,2,3,4,5]] * 25
-
-
-# Lottery: tickets are generated per test case in code (random). If you prefer fixed tickets,
-# set LOTTERY_TICKETS_PER_CASE to a list of dicts (one dict per test case). Otherwise leave None.
-LOTTERY_TICKETS_PER_CASE = None
-
+PSA_PRIORITIES_PER_CASE = [[1,2,3,4,5]] * 25  # deterministic priorities
 
 # Test groups
 
@@ -359,4 +344,5 @@ def run_group(group):
 
 if __name__ == "__main__":
     run_group(group)
+
 
