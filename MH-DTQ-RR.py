@@ -10,8 +10,8 @@ from copy import deepcopy
 # Choose group to run: group_a, group_b, group_c, group_d, group_e
 GROUP_NAME = "group_a"   # set to "group_a"|"group_b"|"group_c"|"group_d"|"group_e"
 
-# Standard RR time quantum (you set this before running)
-RR_TQ = 4   # <-- change here per group run (e.g., 2 for Group A, 4 for Group B, 4 for Group C, 6 for Group D, 4 for Group E)
+# Standard RR time quantum (set before running)
+RR_TQ = 4   # 
 
 # PSA priorities per test case:
 #   where each inner list contains 5 (unique) priorities for the corresponding test case.
@@ -24,7 +24,9 @@ PSA_PRIORITIES_PER_CASE = [[1,2,3,4,5]] * 25
 LOTTERY_TICKETS_PER_CASE = None
 
 
-# Test groups (copied / created earlier)
+# Test groups
+
+#short AT, short BT
 group_a = [
     [["P1",0,1], ["P2",1,2], ["P3",2,1], ["P4",3,3], ["P5",4,2]],   # TC1
     [["P1",0,2], ["P2",1,1], ["P3",2,3], ["P4",3,2], ["P5",4,1]],   # TC2
@@ -53,6 +55,7 @@ group_a = [
     [["P1",1,2], ["P2",2,1], ["P3",3,2], ["P4",4,3], ["P5",5,1]]    # TC25
 ]
 
+#short AT, long BT
 group_b = [
     [["P1",0,12], ["P2",1,14], ["P3",2,11], ["P4",3,16], ["P5",4,13]],
     [["P1",0,15], ["P2",1,11], ["P3",2,18], ["P4",3,12], ["P5",4,14]],
@@ -81,6 +84,7 @@ group_b = [
     [["P1",2,13], ["P2",3,11], ["P3",4,15], ["P4",5,12], ["P5",6,16]]
 ]
 
+#long AT, short BT
 group_c = [
     [["P1",11,1], ["P2",12,2], ["P3",13,1], ["P4",14,3], ["P5",15,2]],
     [["P1",11,2], ["P2",12,1], ["P3",14,3], ["P4",15,2], ["P5",16,1]],
@@ -109,6 +113,7 @@ group_c = [
     [["P1",12,3], ["P2",13,2], ["P3",14,1], ["P4",15,2], ["P5",16,1]]
 ]
 
+#long AT, long BT
 group_d = [
     [["P1",11,12], ["P2",12,13], ["P3",13,11], ["P4",14,15], ["P5",15,14]],
     [["P1",11,14], ["P2",12,11], ["P3",13,16], ["P4",14,12], ["P5",15,13]],
@@ -137,6 +142,7 @@ group_d = [
     [["P1",12,13], ["P2",13,11], ["P3",14,15], ["P4",15,12], ["P5",16,16]]
 ]
 
+#random
 group_e = [
     [["P1",2,11], ["P2",0,3], ["P3",7,17], ["P4",4,6], ["P5",9,2]],
     [["P1",1,5], ["P2",3,14], ["P3",8,4], ["P4",0,12], ["P5",6,9]],
@@ -171,11 +177,10 @@ group = GROUPS.get(GROUP_NAME)
 if group is None:
     raise ValueError("Invalid GROUP_NAME - set to one of group_a..group_e")
 
-# -----------------------------
-# Utility: compute ATAT & AWT from completed list
-# -----------------------------
+
+#compute ATAT & AWT from completed list
+
 def compute_metrics_from_completed(completed, processes):
-    """completed: list of [pid, completion_time]"""
     n = len(processes)
     total_turnaround = 0
     total_waiting = 0
@@ -186,32 +191,27 @@ def compute_metrics_from_completed(completed, processes):
         waiting = turnaround - burst
         total_turnaround += turnaround
         total_waiting += waiting
-    ATAT = total_turnaround / n
-    AWT = total_waiting / n
-    return ATAT, AWT
+    return total_turnaround/n, total_waiting/n
 
-# -----------------------------
+
 # 1) MH-DTQ-RR
-# deterministic (no randomness)
-# -----------------------------
+
 def mh_dtq_rr(processes):
-    proc_list = sorted([p[:] for p in processes], key=lambda x: (x[1], x[0]))  # stable order by arrival then PID
+    proc_list = sorted([p[:] for p in processes], key=lambda x: (x[1], x[0]))
     time = 0
     i = 0
     n = len(proc_list)
-    ready_heap = []  # heap entries: (remaining_burst, pid, arrival_time)
+    ready_heap = []
     completed = []
     last_exec_time = {p[0]: p[1] for p in proc_list}
 
     def compute_tq(heap_list):
-        # heap_list contains heap items [rem, pid, arrival]
         if not heap_list:
             return 0
-        avg = sum(item[0] for item in heap_list) / len(heap_list)
-        return math.ceil(avg)  # round up ALWAYS
+        avg = sum(item[0] for item in heap_list)/len(heap_list)
+        return math.ceil(avg)
 
     while i < n or ready_heap:
-        # enqueue all that arrived at current time, in deterministic PID order if same arrival
         while i < n and proc_list[i][1] <= time:
             rem = proc_list[i][2]
             pid = proc_list[i][0]
@@ -235,22 +235,19 @@ def mh_dtq_rr(processes):
 
     return compute_metrics_from_completed(completed, processes)
 
-# -----------------------------
-# 2) Standard RR (deterministic)
-# RR_TQ at top
-# -----------------------------
+
+# 2) RR
+
 def rr(processes, tq=RR_TQ):
     proc_list = sorted([p[:] for p in processes], key=lambda x: (x[1], x[0]))
     time = 0
     i = 0
     n = len(proc_list)
-    ready_queue = []  # deterministic queue, append in PID order for simultaneous arrivals
+    ready_queue = []
     completed = []
     remaining = {p[0]: p[2] for p in proc_list}
-    last_exec_time = {p[0]: p[1] for p in proc_list}
 
     while i < n or ready_queue:
-        # add arrived processes (if multiple arrived at same time, add in PID sorted order)
         while i < n and proc_list[i][1] <= time:
             ready_queue.append(proc_list[i][0])
             i += 1
@@ -258,10 +255,8 @@ def rr(processes, tq=RR_TQ):
         if ready_queue:
             pid = ready_queue.pop(0)
             exec_time = min(tq, remaining[pid])
-            # deterministic update
             time += exec_time
             remaining[pid] -= exec_time
-            last_exec_time[pid] = time
             if remaining[pid] > 0:
                 ready_queue.append(pid)
             else:
@@ -271,16 +266,12 @@ def rr(processes, tq=RR_TQ):
 
     return compute_metrics_from_completed(completed, processes)
 
-# -----------------------------
-# 3) PSA (Priority Scheduling Algorithm) - non-preemptive here
-# PSA_PRIORITIES_PER_CASE controls priorities (deterministic)
-# priorities: lower number => higher priority
-# -----------------------------
+
+# 3) PSA
+
 def psa(processes, priorities):
-    # priorities: list of ints in same order as processes sorted by arrival then PID
     proc_list = sorted([p[:] for p in processes], key=lambda x: (x[1], x[0]))
     if len(priorities) != len(proc_list):
-        # fallback: deterministic default 1..n by PID order (stable)
         priorities_dict = {p[0]: idx+1 for idx, p in enumerate(proc_list)}
     else:
         priorities_dict = {proc_list[i][0]: priorities[i] for i in range(len(proc_list))}
@@ -290,11 +281,9 @@ def psa(processes, priorities):
     time = 0
     remaining = {p[0]: p[2] for p in proc_list}
 
-    # non-preemptive: pick available at current time with highest priority (lowest number)
     while len(completed) < n:
-        available = [p for p in proc_list if p[1] <= time and remaining[p[0]] > 0]
+        available = [p for p in proc_list if p[1]<=time and remaining[p[0]]>0]
         if available:
-            # choose by priority then PID (deterministic)
             chosen = min(available, key=lambda x: (priorities_dict[x[0]], x[0]))
             pid = chosen[0]
             time += remaining[pid]
@@ -305,117 +294,69 @@ def psa(processes, priorities):
 
     return compute_metrics_from_completed(completed, processes)
 
-# -----------------------------
-# 4) Lottery Scheduling (randomized)
-# tickets are provided per test case or generated randomly here
-# -----------------------------
-def lottery(processes, tickets):
+
+# 4) FCFS (First-Come, First-Served)
+
+def fcfs(processes):
     proc_list = sorted([p[:] for p in processes], key=lambda x: (x[1], x[0]))
-    n = len(proc_list)
-    completed = []
     time = 0
+    completed = []
+
+    for pid, arrival, burst in proc_list:
+        if time < arrival:
+            time = arrival
+        time += burst
+        completed.append([pid, time])
+
+    return compute_metrics_from_completed(completed, processes)
+
+
+# 5) SJF (Shortest Job First, Non-Preemptive)
+
+def sjf(processes):
+    proc_list = sorted([p[:] for p in processes], key=lambda x: (x[1], x[0]))
+    time = 0
+    completed = []
     remaining = {p[0]: p[2] for p in proc_list}
+    n = len(proc_list)
 
     while len(completed) < n:
         available = [p for p in proc_list if p[1] <= time and remaining[p[0]] > 0]
         if available:
-            pool = []
-            for p in available:
-                pool.extend([p[0]] * tickets[p[0]])
-            # random draw (no seed) - result will vary each run
-            pid = random.choice(pool)
-            # run 1 unit (typical lottery step)
-            time += 1
-            remaining[pid] -= 1
-            if remaining[pid] == 0:
-                completed.append([pid, time])
+            chosen = min(available, key=lambda x: (remaining[x[0]], x[0]))
+            pid = chosen[0]
+            time += remaining[pid]
+            remaining[pid] = 0
+            completed.append([pid, time])
         else:
             time += 1
 
     return compute_metrics_from_completed(completed, processes)
 
-# -----------------------------
-# 5) MLFQ (deterministic)
-# Strict ordering: tie-break by PID; no randomness
-# 3 levels, quantums can be changed here if desired
-# -----------------------------
-def mlfq(processes, quantums=(4,8,12)):
-    proc_list = sorted([p[:] for p in processes], key=lambda x: (x[1], x[0]))
-    n = len(proc_list)
-    time = 0
-    i = 0
-    queues = [[] for _ in quantums]  # queues store PIDs
-    remaining = {p[0]: p[2] for p in proc_list}
-    completed = []
-    # Strict deterministic rules:
-    # - When multiple processes arrive at same time, insert them into top queue in PID order
-    # - When demoting, append to tail (FIFO)
-    # - No random tie-breaking
 
-    while len(completed) < n:
-        # add newly arrived in deterministic order
-        while i < n and proc_list[i][1] <= time:
-            queues[0].append(proc_list[i][0])
-            i += 1
+# Run group and print table
 
-        executed = False
-        for lvl, tq in enumerate(quantums):
-            if queues[lvl]:
-                pid = queues[lvl].pop(0)
-                exec_time = min(tq, remaining[pid])
-                time += exec_time
-                remaining[pid] -= exec_time
-                if remaining[pid] > 0:
-                    # demote to next queue if exists, otherwise stay
-                    if lvl + 1 < len(quantums):
-                        queues[lvl+1].append(pid)
-                    else:
-                        queues[lvl].append(pid)
-                else:
-                    completed.append([pid, time])
-                executed = True
-                break
-        if not executed:
-            time += 1
-
-    return compute_metrics_from_completed(completed, processes)
-
-# -----------------------------
-# Run chosen group and print compact table (ATAT / AWT)
-# -----------------------------
 def run_group(group):
     print(f"Running {GROUP_NAME} with RR_TQ={RR_TQ}")
-    header = f"{'Test':<5}{'MH-DTQ-RR':<18}{'RR':<18}{'PSA':<18}{'Lottery':<18}{'MLFQ':<18}"
+    header = f"{'Test':<5}{'MH-DTQ-RR':<18}{'RR':<18}{'PSA':<18}{'FCFS':<18}{'SJF':<18}"
     print(header)
     print(f"{'':<5}{'ATAT/AWT':<18}{'ATAT/AWT':<18}{'ATAT/AWT':<18}{'ATAT/AWT':<18}{'ATAT/AWT':<18}")
 
     for idx, case in enumerate(group, 1):
-        processes = deepcopy(case)  # avoid mutation
-        # PSA priorities: use provided per-case list if PSA_PRIORITIES_PER_CASE given
-        if PSA_PRIORITIES_PER_CASE and len(PSA_PRIORITIES_PER_CASE) >= idx:
-            psa_priorities = PSA_PRIORITIES_PER_CASE[idx-1]
-        else:
-            # deterministic default: priorities 1..n by PID order in arrival-sorted list
-            sorted_proc = sorted([p[:] for p in processes], key=lambda x: (x[1], x[0]))
-            psa_priorities = list(range(1, len(sorted_proc)+1))
-
-        # Lottery tickets: use provided per case or generate random ones now (random each run)
-        if LOTTERY_TICKETS_PER_CASE and len(LOTTERY_TICKETS_PER_CASE) >= idx:
-            lottery_tickets = LOTTERY_TICKETS_PER_CASE[idx-1]
-        else:
-            # random generate tickets between 1 and 5 per process for this test case
-            lottery_tickets = {p[0]: random.randint(1,5) for p in processes}
+        processes = deepcopy(case)
+        psa_priorities = PSA_PRIORITIES_PER_CASE[idx-1] if PSA_PRIORITIES_PER_CASE else list(range(1,len(processes)+1))
 
         mh_at, mh_awt = mh_dtq_rr(processes)
         rr_at, rr_awt = rr(processes, tq=RR_TQ)
         psa_at, psa_awt = psa(processes, psa_priorities)
-        lot_at, lot_awt = lottery(processes, lottery_tickets)
-        mlfq_at, mlfq_awt = mlfq(processes)
+        fcfs_at, fcfs_awt = fcfs(processes)
+        sjf_at, sjf_awt = sjf(processes)
 
         print(f"{idx:<5}{mh_at:.2f}/{mh_awt:.2f}     {rr_at:.2f}/{rr_awt:.2f}     "
-              f"{psa_at:.2f}/{psa_awt:.2f}     {lot_at:.2f}/{lot_awt:.2f}     {mlfq_at:.2f}/{mlfq_awt:.2f}")
+              f"{psa_at:.2f}/{psa_awt:.2f}     {fcfs_at:.2f}/{fcfs_awt:.2f}     "
+              f"{sjf_at:.2f}/{sjf_awt:.2f}")
 
-# run
+
 if __name__ == "__main__":
-
     run_group(group)
+
